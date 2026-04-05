@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sachbol-gateway
+    runtime: python
+    region: oregon
+
+    buildCommand: pip install -r render_app/requirements.txt
+
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT render_app.app:app
+
+    envVars:
+      - key: KAGGLE_BACKEND_URL
+        value: ""          # ← paste your ngrok URL here after each Kaggle session
+
+    autoDeploy: true

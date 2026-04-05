@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics | SachBol AI</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- Anti-flash: apply saved theme before first paint -->
+  <script>
+    (function(){
+      var t = localStorage.getItem('sachbol-theme') ||
+              (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+
+<!-- Ambient background — light grid only -->
+<div class="bg-layer" aria-hidden="true">
+  <canvas id="gridCanvas"></canvas>
+</div>
+
+<div class="shell">
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-logo">
+        <span class="brand-s">S</span><span class="brand-rest">achBol</span>
+      </span>
+      <span class="brand-tag">AI</span>
+    </div>
+    <div class="nav-right">
+      <a href="/" class="nav-link">
+        <i class="fa-solid fa-arrow-left"></i> Verifier
+      </a>
+      <button class="nav-link btn-ghost" onclick="loadData()">
+        <i class="fa-solid fa-rotate"></i> Refresh
+      </button>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark / light mode">
+        <span class="theme-toggle-thumb"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Dashboard header -->
+  <section class="dash-header">
+    <div>
+      <h1 class="hero-title" style="font-size:2.2rem">
+        <i class="fa-solid fa-chart-line accent"></i> Global Intelligence
+      </h1>
+      <p class="hero-sub" style="margin-top:.5rem">
+        Real-time analysis of <strong id="totalCount" class="accent">—</strong> live news signals
+      </p>
+    </div>
+    <div class="dash-meta">
+      <span id="lastUpdated" class="dash-ts">Fetching…</span>
+    </div>
+  </section>
+
+  <!-- KPI row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:rgba(37,99,235,.1);color:#2563eb">
+        <i class="fa-solid fa-newspaper"></i>
+      </div>
+      <div>
+        <div class="kpi-val" id="kpi-total">—</div>
+        <div class="kpi-label">Articles analysed</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:rgba(5,150,105,.1);color:#059669">
+        <i class="fa-solid fa-face-smile"></i>
+      </div>
+      <div>
+        <div class="kpi-val" id="kpi-positive">—</div>
+        <div class="kpi-label">Positive headlines</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:rgba(220,38,38,.1);color:#dc2626">
+        <i class="fa-solid fa-face-frown"></i>
+      </div>
+      <div>
+        <div class="kpi-val" id="kpi-negative">—</div>
+        <div class="kpi-label">Negative headlines</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:rgba(124,58,237,.1);color:#7c3aed">
+        <i class="fa-solid fa-hashtag"></i>
+      </div>
+      <div>
+        <div class="kpi-val" id="kpi-top-word" style="font-size:1.1rem">—</div>
+        <div class="kpi-label">Top trending topic</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts grid -->
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="fa-solid fa-layer-group" style="color:#7c3aed"></i>
+        Topic Distribution
+      </div>
+      <div class="chart-wrap">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Trending topics panel -->
+    <div class="chart-card trending-card">
+      <div class="chart-title">
+        <i class="fa-solid fa-fire" style="color:#f97316"></i>
+        What's Trending
+        <span style="margin-left:auto;font-size:.65rem;background:rgba(37,99,235,.08);color:#2563eb;padding:2px 8px;border-radius:999px;border:1px solid rgba(37,99,235,.2);text-transform:none;letter-spacing:0">India · World · Live RSS</span>
+      </div>
+      <div id="trendingTopics" class="trending-list">
+        <div class="trending-error">
+          <i class="fa-solid fa-circle-notch fa-spin" style="margin-bottom:.5rem;font-size:1.2rem;color:#2563eb"></i><br>
+          Loading trends…
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="fa-solid fa-heart-pulse" style="color:#dc2626"></i>
+        Global Sentiment
+      </div>
+      <div class="chart-wrap" style="max-width:280px;margin:0 auto">
+        <canvas id="sentimentChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="site-footer">
+    <span>SachBol AI — Analytics Dashboard</span>
+  </footer>
+
+</div>
+
+<!-- Full-screen loader -->
+<div id="dashLoader" class="dash-loader">
+  <div class="dash-spinner"></div>
+  <p class="dash-loader-text">Loading analytics…</p>
+</div>
+
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>
