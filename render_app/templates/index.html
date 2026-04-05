@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SachBol AI — Fact-Check Engine</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- Anti-flash: apply saved theme before first paint -->
+  <script>
+    (function(){
+      var t = localStorage.getItem('sachbol-theme') ||
+              (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+
+<!-- ── Ambient Background ──────────────────────────────────── -->
+<div class="bg-layer" aria-hidden="true">
+  <canvas id="gridCanvas"></canvas>
+</div>
+
+<!-- ── Page Shell ─────────────────────────────────────────── -->
+<div class="shell">
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="brand-logo">
+        <span class="brand-s">S</span><span class="brand-rest">achBol</span>
+      </span>
+      <span class="brand-tag">AI</span>
+    </div>
+    <div class="nav-center">
+      <div id="statusPill" class="status-pill">
+        <span class="pulse-dot"></span>
+        <span id="statusText">Checking systems…</span>
+      </div>
+    </div>
+    <div class="nav-right">
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-chart-line"></i> Analytics
+      </a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark / light mode">
+        <span class="theme-toggle-thumb"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <p class="hero-eyebrow"><i class="fa-solid fa-atom"></i> 4-Model Ensemble · Groq LLaMA Scout 17B · SachBol AI Vision · DeBERTa · Credibility Scorer</p>
+    <h1 class="hero-title">
+      The Strength of the Ensemble,<br/>
+      <span class="shimmer-text">the Certainty of the Truth.</span>
+    </h1>
+    <p class="hero-sub">Paste any suspicious news URL. Our ensemble of AI models cross-references it against live web evidence and returns a calibrated verdict in seconds.</p>
+  </section>
+
+  <!-- VERIFY CARD -->
+  <section class="verify-section">
+    <div class="verify-card">
+
+      <!-- Input row -->
+      <div class="url-row">
+        <div class="url-input-wrap">
+          <i class="fa-solid fa-link url-icon"></i>
+          <input
+            id="urlInput"
+            type="url"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="https://example.com/suspicious-article…"
+          />
+          <button id="clearBtn" class="clear-btn" onclick="clearInput()" title="Clear">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <button id="verifyBtn" class="verify-btn" onclick="runAgent()">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Verify</span>
+        </button>
+      </div>
+
+      <!-- Pipeline loader -->
+      <div id="pipeline" class="pipeline hidden">
+        <div class="pipeline-track">
+          <div class="pipeline-step" id="ps-0">
+            <div class="ps-icon"><i class="fa-solid fa-spider"></i></div>
+            <div class="ps-label">Scraping article</div>
+            <div class="ps-bar"><div class="ps-fill"></div></div>
+          </div>
+          <div class="pipeline-connector"></div>
+          <div class="pipeline-step" id="ps-1">
+            <div class="ps-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="ps-label">Querying evidence</div>
+            <div class="ps-bar"><div class="ps-fill"></div></div>
+          </div>
+          <div class="pipeline-connector"></div>
+          <div class="pipeline-step" id="ps-2">
+            <div class="ps-icon"><i class="fa-solid fa-brain"></i></div>
+            <div class="ps-label">Running 4-model ensemble</div>
+            <div class="ps-bar"><div class="ps-fill"></div></div>
+          </div>
+          <div class="pipeline-connector"></div>
+          <div class="pipeline-step" id="ps-3">
+            <div class="ps-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+            <div class="ps-label">Aggregating verdict</div>
+            <div class="ps-bar"><div class="ps-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error banner -->
+      <div id="errorBanner" class="error-banner hidden">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="errorMsg">Something went wrong.</span>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="results hidden">
+
+        <!-- Verdict hero -->
+        <div class="verdict-hero">
+          <div id="verdictBadge" class="verdict-badge">
+            <span id="verdictIcon"></span>
+            <span id="verdictLabel">VERIFIED</span>
+          </div>
+          <div class="confidence-ring-wrap">
+            <svg class="confidence-ring" viewBox="0 0 80 80">
+              <circle class="ring-bg" cx="40" cy="40" r="34" />
+              <circle id="ringFill" class="ring-fill" cx="40" cy="40" r="34"
+                stroke-dasharray="213.6" stroke-dashoffset="213.6" />
+            </svg>
+            <div class="ring-label">
+              <span id="confNum">0</span>
+              <small>%</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Title -->
+        <h2 id="articleTitle" class="article-title"></h2>
+
+        <!-- Social media post preview — only visible for Twitter/Reddit/etc. URLs -->
+        <div id="socialPreview" class="social-preview hidden"></div>
+
+        <!-- Reasoning — two labelled cards side-by-side (stack on mobile) -->
+        <div class="reasoning-block">
+          <div class="block-header">
+            <i class="fa-solid fa-brain"></i> AI Reasoning
+          </div>
+          <!-- Spinner shown while verification runs -->
+          <div id="reasoningSpinner" class="reasoning-spinner hidden">
+            <div class="r-spin"></div>
+            <span>Analysing with Groq LLaMA Scout 17B &amp; SachBol AI Vision…</span>
+          </div>
+          <!-- LLaMA full-width reasoning card -->
+          <div class="reasoning-card reasoning-card--full">
+            <div class="reasoning-card-header">
+              <i class="fa-solid fa-microchip"></i>
+              <span>Groq LLaMA Scout 17B</span>
+              <span class="reasoning-badge reasoning-badge--groq">40%</span>
+            </div>
+            <div id="reasoningGroq" class="reasoning-text"></div>
+            <!-- Qwen one-liner inline strip, shown below LLaMA reasoning -->
+            <div id="qwenInsightStrip" class="qwen-insight-strip hidden">
+              <span class="qwen-insight-label">
+                <i class="fa-solid fa-eye"></i> Vision Model
+              </span>
+              <span id="qwenInsightText" class="qwen-insight-text"></span>
+            </div>
+            <div id="reasoningQwenOffline" class="reasoning-offline hidden">
+              <i class="fa-solid fa-plug-circle-xmark"></i> Vision model (Kaggle) not connected
+            </div>
+          </div>
+        </div>
+
+        <!-- Ensemble breakdown -->
+        <div class="ensemble-block">
+          <div class="block-header">
+            <i class="fa-solid fa-sliders"></i> Ensemble Breakdown
+          </div>
+          <div class="ensemble-grid">
+
+            <div class="em-card" id="em-groq">
+              <div class="em-header">
+                <span class="em-name">Groq LLaMA Scout 17B</span>
+                <span class="em-weight">40%</span>
+              </div>
+              <div class="em-verdict-row">
+                <span class="em-verdict" id="em-groq-v"></span>
+                <span class="em-conf" id="em-groq-c"></span>
+              </div>
+              <div class="em-bar-wrap">
+                <div class="em-bar" id="em-groq-bar"></div>
+              </div>
+            </div>
+
+            <div class="em-card" id="em-qwen">
+              <div class="em-header">
+                <span class="em-name">SachBol AI Vision</span>
+                <span class="em-weight">30%</span>
+              </div>
+              <div class="em-verdict-row">
+                <span class="em-verdict" id="em-qwen-v"></span>
+                <span class="em-conf" id="em-qwen-c"></span>
+              </div>
+              <div class="em-bar-wrap">
+                <div class="em-bar" id="em-qwen-bar"></div>
+              </div>
+              <div id="em-qwen-offline" class="em-offline hidden">
+                <i class="fa-solid fa-triangle-exclamation"></i> Not connected to Kaggle
+              </div>
+            </div>
+
+            <div class="em-card" id="em-bge">
+              <div class="em-header">
+                <span class="em-name">BGE Reranker v2-m3</span>
+                <span class="em-weight">15%</span>
+              </div>
+              <div class="em-verdict-row">
+                <span class="em-verdict" id="em-bge-v"></span>
+                <span class="em-conf" id="em-bge-c"></span>
+              </div>
+              <div class="em-bar-wrap">
+                <div class="em-bar" id="em-bge-bar"></div>
+              </div>
+              <div id="em-bge-offline" class="em-offline hidden">
+                <i class="fa-solid fa-triangle-exclamation"></i> Not connected to Kaggle
+              </div>
+            </div>
+
+            <div class="em-card em-cred" id="em-cred">
+              <div class="em-header">
+                <span class="em-name">Source Credibility</span>
+                <span class="em-weight">15%</span>
+              </div>
+              <div class="cred-stats">
+                <div class="cred-stat">
+                  <span class="cred-num" id="cred-trusted">—</span>
+                  <span class="cred-label">Trusted sources</span>
+                </div>
+                <div class="cred-stat">
+                  <span class="cred-num" id="cred-score">—</span>
+                  <span class="cred-label">Avg. trust score</span>
+                </div>
+                <div class="cred-stat">
+                  <span id="cred-debunked" class="cred-badge"></span>
+                  <span class="cred-label">Debunk signal</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Sources -->
+        <div class="sources-block">
+          <div class="block-header">
+            <i class="fa-solid fa-globe"></i> Corroborating Evidence
+            <span id="srcCount" class="src-count-badge"></span>
+          </div>
+          <div id="sourcesList" class="sources-list"></div>
+        </div>
+
+      </div><!-- /results -->
+    </div><!-- /verify-card -->
+  </section>
+
+  <!-- NEWS FEED -->
+  <section class="feed-section">
+    <div class="feed-header">
+      <h2><i class="fa-solid fa-tower-broadcast"></i> Live News Stream</h2>
+      <button class="refresh-btn" onclick="loadFeed()" title="Refresh">
+        <i class="fa-solid fa-rotate" id="refreshIcon"></i>
+      </button>
+    </div>
+    <div id="feedGrid" class="feed-grid">
+      <!-- Cards injected by JS -->
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <span>SachBol AI — built for truth</span>
+    <span class="footer-sep">·</span>
+    <span>Ensemble: Groq LLaMA · SachBol AI Vision · DeBERTa · Credibility</span>
+  </footer>
+
+</div><!-- /shell -->
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
