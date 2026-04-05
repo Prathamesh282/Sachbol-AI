@@ -1,13 +1,16 @@
 # SachBol AI 🛡️
 
-**India's fact-checking engine** — a 4-model ensemble that scrapes any news URL, retrieves live Google evidence, and returns a calibrated verdict in seconds.
+**India's fact-checking engine** — a 3-model ensemble that scrapes any news URL, retrieves live Google evidence, and returns a calibrated verdict in seconds.
 
 ```
-Ensemble composition:
-  Groq LLaMA-3.3-70B  →  40%   (accuracy + key sources)
-  DeBERTa-v3-Large    →  30%   (fast calibrated classifier)
-  Qwen-2.5-3B         →  15%   (evidence-grounded reasoning)
-  Credibility Scorer  →  15%   (source reputation heuristics)
+Ensemble composition (Kaggle/Production):
+  Groq LLaMA-4 Scout 17B  →  50%   (accuracy + key sources)
+  Qwen3-VL-8B             →  35%   (multimodal evidence reasoning)
+  Credibility Scorer      →  15%   (source reputation heuristics)
+
+Optional local-only component:
+  BGE Reranker v2-m3      →  replaces Credibility when USE_BGE_RERANKER=true
+  DeBERTa-v3-Large        →  legacy classifier (fine-tuned checkpoint required)
 ```
 
 ---
@@ -26,8 +29,8 @@ Ensemble composition:
 │  User → Render (render_app/app.py)                          │
 │              ↓  proxies ML calls via ngrok                  │
 │         Kaggle (kaggle_server.py)                           │
-│              ↓  loads models from HuggingFace               │
-│         Qwen 3B adapter + Groq API                          │
+│              ↓  loads Qwen3-VL-8B from HuggingFace          │
+│         Qwen3-VL-8B adapter + Groq API                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,14 +43,13 @@ sachbol/
 ├── backend/
 │   ├── app.py              ← Flask server (full ML, local dev)
 │   ├── config.py           ← Env var loading
-│   ├── agent.py            ← 4-stage pipeline orchestrator
 │   └── ensemble/
 │       ├── __init__.py     ← Package exports
 │       ├── aggregator.py   ← Weighted voting logic
-│       ├── classifier.py   ← DeBERTa-v3 classifier
 │       ├── credibility.py  ← Source trust heuristics
-│       ├── groq_reasoner.py← Groq LLaMA-70B reasoning
-│       └── reasoner.py     ← Qwen 3B local reasoning
+│       ├── groq_reasoner.py← Groq LLaMA-4 Scout reasoning
+│       ├── kaggle_bge.py   ← BGE Reranker via Kaggle backend
+│       └── reasoner.py     ← Qwen3-VL-8B local reasoning
 ├── render_app/
 │   ├── app.py              ← Lightweight gateway (Render deploy)
 │   └── requirements.txt    ← Render deps (no ML)
@@ -81,7 +83,7 @@ sachbol/
 ### Step 1 — Clone & setup
 
 ```bash
-git clone https://github.com/yourname/sachbol.git
+git clone https://github.com/Prathamesh282/sachbol.git
 cd sachbol
 
 python -m venv .venv
@@ -102,9 +104,9 @@ pip install torch                # pulls CUDA build automatically
 pip install -r requirements.txt
 ```
 
-> **Tip:** If you only want to run with Groq (no local DeBERTa/Qwen models),
-> set `USE_DEBERTA=false` and `USE_QWEN_LOCAL=false` in your `.env`.
-> The app still works — Groq + Credibility carry 55% of the ensemble weight.
+> **Tip:** If you only want to run with Groq (no local Qwen/BGE models),
+> set `USE_QWEN_LOCAL=false` and `USE_BGE_RERANKER=false` in your `.env`.
+> The app still works — Groq + Credibility carry 65%+ of the ensemble weight.
 
 ### Step 3 — Configure environment
 
@@ -141,15 +143,16 @@ Open http://localhost:5000
 
 ## Disabling Heavy Local Models (Groq-only mode)
 
-If you don't have GPU / don't want to download the 3B model, add to `.env`:
+If you don't have a GPU / don't want to download large models, add to `.env`:
 
 ```
-USE_DEBERTA=false
 USE_QWEN_LOCAL=false
+USE_BGE_RERANKER=false
+USE_DEBERTA=false
 ```
 
-The app runs entirely on Groq 70B + Credibility scorer.
-Verdicts are still high-quality — just without the local model contributions.
+The app runs entirely on Groq LLaMA-4 Scout + Credibility scorer.
+Verdicts are still high quality — just without the local model contributions.
 
 ---
 
@@ -174,7 +177,7 @@ In your Kaggle notebook → Add-ons → Secrets:
 git init
 git add .
 git commit -m "initial"
-git remote add origin https://github.com/yourname/sachbol
+git remote add origin https://github.com/Prathamesh282/sachbol
 git push -u origin main
 ```
 
@@ -225,10 +228,9 @@ Fact-checks a news article URL.
   "reasoning": "Two independent sources confirm...",
   "sources":   [{ "title": "...", "link": "...", "snippet": "..." }],
   "ensemble_breakdown": {
-    "groq":   { "verdict": "VERIFIED", "confidence": 88, "weight": 0.4 },
-    "deberta":    { "verdict": "VERIFIED", "confidence": 79, "weight": 0.3 },
-    "qwen_3b":    { "verdict": "MOSTLY_TRUE", "confidence": 72, "weight": 0.15 },
-    "credibility":{ "score": 82, "trusted_sources": 4, "debunked": false }
+    "groq":       { "verdict": "VERIFIED", "confidence": 88, "weight": 0.50 },
+    "qwen_vl_8b": { "verdict": "VERIFIED", "confidence": 79, "weight": 0.35, "available": true },
+    "credibility":{ "score": 82, "trusted_sources": 4, "debunked": false, "weight": 0.15 }
   }
 }
 ```
@@ -242,27 +244,69 @@ Returns sentiment, topic distribution, and trending keywords.
 ### `GET /api/health`
 Returns ensemble component availability status.
 
+### `POST /rerank` *(Kaggle backend only)*
+BGE Reranker endpoint — scores evidence passages for relevance to a claim.
+
 ---
 
 ## HuggingFace Models
 
 | Model | HF ID | Role |
 |---|---|---|
-| DeBERTa-v3 | `prathameshbandal/sachbol-deberta-classifier` | Fast classifier (30%) |
-| Qwen adapter | `prathameshbandal/sachbol-qwen-reasoner` | Reasoning (15%) |
+| Qwen3-VL-8B adapter | `prathameshbandal/sachbol-qwen3vl-final` | Multimodal evidence reasoning (35%) |
+| DeBERTa-v3 (legacy) | `prathameshbandal/sachbol-deberta-classifier` | Optional local classifier |
 
 ---
 
 ## Ensemble Weights
 
+### Kaggle / Production
+
 | Component | Weight | Notes |
 |---|---|---|
-| Groq LLaMA-3.3-70B | 40% | Accuracy + key sources |
-| DeBERTa-v3-Large | 30% | Fast, temperature-calibrated |
-| Qwen-2.5-3B | 15% | Evidence-grounded reasoning |
+| Groq LLaMA-4 Scout 17B | 50% | Accuracy + key sources |
+| Qwen3-VL-8B | 35% | Multimodal evidence-grounded reasoning |
 | Credibility Scorer | 15% | Domain reputation heuristics |
 
-Weights are renormalized automatically if local models are unavailable.
+Weights are renormalized automatically if a component is unavailable.
+
+### Local Development (optional overrides)
+
+| Component | Env flag | Notes |
+|---|---|---|
+| BGE Reranker v2-m3 | `USE_BGE_RERANKER=true` | Replaces Credibility scorer locally |
+| BGE via Kaggle | `USE_BGE_KAGGLE=true` + `BGE_KAGGLE_URL=...` | Same ngrok URL as Qwen |
+| DeBERTa-v3-Large | `USE_DEBERTA=true` | Requires fine-tuned checkpoint |
+| Qwen3-VL-8B local | `USE_QWEN_LOCAL=true` + `QWEN_KAGGLE_URL=...` | ~7 GB VRAM (bfloat16) or ~4 GB (4-bit) |
+
+---
+
+## Environment Variables
+
+```env
+# Required
+GROQ_API_KEY=gsk_...
+SERPER_API_KEY=...
+
+# Groq model (default: Llama 4 Scout)
+GROQ_MODEL_NAME=meta-llama/llama-4-scout-17b-16e-instruct
+
+# Qwen — choose ONE
+USE_QWEN_KAGGLE=true
+QWEN_KAGGLE_URL=https://xxxx.ngrok.io   # your Kaggle ngrok URL
+# OR
+USE_QWEN_LOCAL=false
+QWEN_MODEL_HF_ID=prathameshbandal/sachbol-qwen3vl-final
+
+# 4th component — choose ONE (BGE Kaggle > BGE local > DeBERTa)
+USE_BGE_KAGGLE=false
+BGE_KAGGLE_URL=https://xxxx.ngrok.io    # can reuse QWEN_KAGGLE_URL
+USE_BGE_RERANKER=false
+USE_DEBERTA=false
+
+# Production (Render gateway)
+KAGGLE_BACKEND_URL=https://xxxx-xx-xx.ngrok-free.app
+```
 
 ---
 
@@ -278,10 +322,13 @@ Weights are renormalized automatically if local models are unavailable.
 → Make sure `templates/` folder is at project root (not inside `backend/`)
 
 **Local models not loading**
-→ Set `USE_DEBERTA=false` and `USE_QWEN_LOCAL=false` in `.env` to run Groq-only
+→ Set `USE_QWEN_LOCAL=false`, `USE_BGE_RERANKER=false`, `USE_DEBERTA=false` in `.env` to run Groq-only
 
 **Kaggle ngrok URL expired**
-→ Restart Kaggle notebook, copy new URL, update `KAGGLE_BACKEND_URL` on Render
+→ Restart Kaggle notebook, copy new URL, update `KAGGLE_BACKEND_URL` on Render and `QWEN_KAGGLE_URL` in `.env`
+
+**Qwen3-VL-8B OOM on T4**
+→ The model is loaded in 4-bit NF4 quantization by default (~5 GB VRAM). If you still hit OOM, make sure no other notebooks are running on the same GPU session.
 
 ---
 
