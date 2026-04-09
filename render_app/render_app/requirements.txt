@@ -1,9 +1,0 @@
-# ─── Render Requirements — NO ML dependencies ─────────────────
-# Keeps Render build under 512 MB.
-# All ML inference is proxied to the Kaggle backend.
-
-flask>=3.0.0
-flask-cors>=4.0.0
-python-dotenv>=1.0.0
-gunicorn>=21.2.0
-requests>=2.31.0

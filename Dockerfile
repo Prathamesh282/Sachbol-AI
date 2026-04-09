@@ -20,6 +20,4 @@ COPY static/     ./static/
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "render_app.app:app"]
+CMD ["sh", "-c", "gunicorn -w 2 -b 0.0.0.0:${PORT:-8000} --timeout 120 render_app.app:app"]

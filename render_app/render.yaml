@@ -6,10 +6,13 @@ services:
 
     buildCommand: pip install -r render_app/requirements.txt
 
-    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT render_app.app:app
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT --timeout 120 render_app.app:app
 
     envVars:
       - key: KAGGLE_BACKEND_URL
-        value: ""          # ← paste your ngrok URL here after each Kaggle session
+        value: ""                  # ← paste your ngrok URL after each Kaggle session
+
+      - key: UNSPLASH_ACCESS_KEY
+        value: ""                  # ← get free key at unsplash.com/developers
 
     autoDeploy: true
