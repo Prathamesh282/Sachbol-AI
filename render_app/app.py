@@ -4,10 +4,10 @@ render_app/app.py
 Deployed on Railway / Render. Zero ML dependencies.
 Serves the frontend and proxies verify requests to the Kaggle ML backend.
 Feed is self-sufficient via RSS fallback when Kaggle is down.
+Images via picsum.photos — no API key, no rate limits.
 
 Environment variables:
-  KAGGLE_BACKEND_URL  = https://xxxx-xx-xx.ngrok-free.app
-  UNSPLASH_ACCESS_KEY = your_unsplash_key  (get free at unsplash.com/developers)
+  KAGGLE_BACKEND_URL = https://xxxx-xx-xx.ngrok-free.app
 """
 
 import os
@@ -36,8 +36,7 @@ CORS(app)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-KAGGLE_BACKEND_URL  = os.getenv("KAGGLE_BACKEND_URL", "").rstrip("/")
-UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")
+KAGGLE_BACKEND_URL = os.getenv("KAGGLE_BACKEND_URL", "").rstrip("/")
 
 GNEWS_RSS_INDIA = "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en"
 
@@ -48,44 +47,24 @@ FALLBACK_RSS_FEEDS = [
     ("Times of India",  "https://timesofindia.indiatimes.com/rssfeedstopstories.cms"),
 ]
 
-# ─── Unsplash category images ─────────────────────────────────
+# ─── Picsum image seeds per category ─────────────────────────
+# Each number is a stable picsum photo ID that fits the category.
+# Browse them at: https://picsum.photos/images
 
-_CATEGORY_IMAGES = {
-    "Technology": [
-        "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop",
-    ],
-    "Business": [
-        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1444653614773-995cb1ef9efa?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=400&fit=crop",
-    ],
-    "Sports": [
-        "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=600&h=400&fit=crop",
-    ],
-    "Health": [
-        "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1530497610245-94d3c16cda28?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&h=400&fit=crop",
-    ],
-    "Politics": [
-        "https://images.unsplash.com/photo-1526470608159-98544929315b?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1555848962-6e79363ec58f?w=600&h=400&fit=crop",
-    ],
-    "General": [
-        "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=600&h=400&fit=crop",
-    ],
+_CATEGORY_SEEDS = {
+    "Technology": [0, 1, 20, 48, 119, 160, 180, 201],
+    "Business":   [3, 6, 26, 43, 57, 76, 103, 137],
+    "Sports":     [17, 29, 35, 60, 80, 120, 140, 165],
+    "Health":     [9, 21, 42, 55, 91, 116, 134, 177],
+    "Politics":   [12, 33, 44, 67, 88, 109, 130, 155],
+    "General":    [2, 5, 10, 15, 22, 30, 50, 70],
 }
 
 
 def get_category_image(headline: str) -> str:
+    """Returns a stable picsum image URL based on headline category."""
     hl = headline.lower()
+
     if any(w in hl for w in ["ai", "tech", "app", "software", "apple", "google", "cyber", "data", "space"]):
         cat = "Technology"
     elif any(w in hl for w in ["market", "bank", "stock", "rupee", "economy", "tata", "reliance", "business", "tax"]):
@@ -99,14 +78,12 @@ def get_category_image(headline: str) -> str:
     else:
         cat = "General"
 
-    url = random.choice(_CATEGORY_IMAGES[cat])
-    if UNSPLASH_ACCESS_KEY:
-        url += f"&client_id={UNSPLASH_ACCESS_KEY}"
-    return url
+    seed = random.choice(_CATEGORY_SEEDS[cat])
+    return f"https://picsum.photos/id/{seed}/600/400"
 
 
 def _fetch_rss_fallback() -> list:
-    """Fetch news directly from publisher RSS feeds — no Kaggle needed."""
+    """Fetch news directly from RSS feeds — no Kaggle needed."""
     articles = []
 
     # Try Google News RSS first
