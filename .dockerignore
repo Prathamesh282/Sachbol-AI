@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# ML model files (heavy — stay on Kaggle)
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.pth
+*.ckpt
+*.h5
+
+# HuggingFace cache
+.cache/
+huggingface/
+
+# Training artifacts
+training/
+*.json
+!render_app/requirements.txt
+
+# Local backend (not needed for gateway)
+backend/
+kaggle_server.py
+kaggle_cell11_fixed.py
+
+# Nested render_app copy (dead code)
+render_app/render_app/
+
+# Misc
+.DS_Store
+*.log
+*.env
+.env
+render.yaml
+README.md
+LICENSE
+Dockerfile.local
